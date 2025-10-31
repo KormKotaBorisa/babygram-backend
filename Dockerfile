@@ -1,24 +1,28 @@
+# Builder stage
 FROM golang:1.22-alpine AS builder
+
+# Set GOPROXY for stable downloads
+ARG GOPROXY=https://proxy.golang.org,direct
+ENV GOPROXY=${GOPROXY}
+
 WORKDIR /app
 
-# Копируем только go.mod
-COPY go.mod ./
+# Copy source code first
+COPY . .
 
-# Обновляем зависимости и скачиваем их
+# Download dependencies and generate go.sum
 RUN go mod tidy
 RUN go mod download
 
-# Копируем остальной код
-COPY . .
+# Build the binary
+RUN CGO_ENABLED=0 GOOS=linux go build -o babygram main.go
 
-# Собираем бинарник
-RUN CGO_ENABLED=0 GOOS=linux go build -o babygram .
-
-# Финальный образ
+# Final stage
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 COPY --from=builder /app/babygram .
 COPY migrations ./migrations
+
 EXPOSE 8080
 CMD ["./babygram"]
